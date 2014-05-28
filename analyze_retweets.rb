@@ -85,7 +85,8 @@ CSV.open("sliding.csv", "w") do |csv|
   csv << %w(Offset RT Male Female None Pct)
   offset = 0
 
-  tweets.first(10_000).each_cons(100) do |slice|
+  # that is, the most recent 20,000
+  tweets.first(20_000).reverse.each_cons(100) do |slice|
     retweet_count = {"male" => 0, "female" => 0, "none" => 0}
 
     slice.each do |tweet|
