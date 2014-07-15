@@ -2,11 +2,14 @@ require "rubygems"
 require "csv"
 require 'oj'
 require "multi_json"
+require "active_support/core_ext"
 
 # load the gender determinations
 genders = {}
 
 miscat = {}
+Time.zone = "Eastern Time (US & Canada)"
+
 
 CSV.foreach("tweets/retweeted_users.csv", :headers => true) do |row|
   gender = row["gender_actual"].strip
@@ -47,7 +50,7 @@ files.reverse.each do |file|
     if tweet["retweeted_status"]
       tweets << tweet
     else
-      tweets << {"id" => tweet["id"]}
+      tweets << {"id" => tweet["id"], "created_at" => tweet["created_at"]}
     end
   end
 end
@@ -79,29 +82,41 @@ end
 puts "... DONE"
 
 print "SLIDING WINDOW TEST"
+current_date = nil
 
 CSV.open("sliding.csv", "w") do |csv|
 
-  csv << %w(Offset RT Male Female None Pct)
+  csv << %w(Offset Date RT Male Female None Pct)
   offset = 0
 
   # that is, the most recent 20,000
-  tweets.first(20_000).reverse.each_cons(100) do |slice|
-    retweet_count = {"male" => 0, "female" => 0, "none" => 0}
+  tweets.first(50_000).reverse.each_cons(100) do |slice|
+    tweet = slice.first
 
-    slice.each do |tweet|
-      if tweet["retweeted_status"]
-        username = tweet["retweeted_status"]["user"]["screen_name"]
-        raise "No gender found for #{username}" if genders[username].nil?
-        raise "Weird gender #{genders[username]} for #{username}" if retweet_count[genders[username]].nil?
+    raise "NULL DATE #{tweet["id"]}" if tweet["created_at"].blank?
+
+    tweet_date = Time.parse(tweet["created_at"]).to_date
+
+
+    if tweet_date != current_date
+      retweet_count = {"male" => 0, "female" => 0, "none" => 0}
+
+      slice.each do |tweet|
+        if tweet["retweeted_status"]
+          username = tweet["retweeted_status"]["user"]["screen_name"]
+          raise "No gender found for #{username}" if genders[username].nil?
+          raise "Weird gender #{genders[username]} for #{username}" if retweet_count[genders[username]].nil?
   
-        retweet_count[genders[username]] += 1
+          retweet_count[genders[username]] += 1
+        end
       end
+
+      total = retweet_count["male"] + retweet_count["female"] + retweet_count["none"]
+      pct = retweet_count["male"] + retweet_count["female"] > 0 ? (retweet_count["male"].to_f / (retweet_count["male"] + retweet_count["female"])) : 0.0
+      csv << [offset, tweet_date.strftime("%Y-%m-%d"), total, retweet_count["male"], retweet_count["female"] , retweet_count["none"], "%0.4f" % pct]
+      current_date = tweet_date
     end
 
-    total = retweet_count["male"] + retweet_count["female"] + retweet_count["none"]
-    pct = retweet_count["male"] + retweet_count["female"] > 0 ? (retweet_count["male"].to_f / (retweet_count["male"] + retweet_count["female"])) : 0.0
-    csv << [offset, total, retweet_count["male"], retweet_count["female"] , retweet_count["none"], "%0.4f" % pct]
     offset += 1
   end
 end
