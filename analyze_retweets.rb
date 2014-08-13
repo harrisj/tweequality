@@ -10,11 +10,18 @@ genders = {}
 miscat = {}
 Time.zone = "Eastern Time (US & Canada)"
 
+counts = {
+  "male" => 0,
+  "female" => 0,
+  "none" => 0
+}
 
 CSV.foreach("tweets/retweeted_users.csv", :headers => true) do |row|
   gender = row["gender_actual"].strip
   guess = row["gender_guess"].strip
   genders[row["username"]] = gender
+
+  counts[gender] += 1
 
   if guess != gender
     miscat_key = "#{guess}->#{gender}"
@@ -24,6 +31,7 @@ CSV.foreach("tweets/retweeted_users.csv", :headers => true) do |row|
 end
 
 puts "TOTAL USERS RETWEETED: #{genders.count}"
+puts "MALE #{counts["male"]} FEMALE  #{counts["female"]} NONE #{counts["none"]}"
 
 miscat_count = miscat.values.inject(0) {|sum, m| sum + m}
 puts "MISCATEGORIZED: #{miscat_count} (#{"%0.2f%%" % (miscat_count * 100.0 / genders.count)})"
@@ -118,6 +126,42 @@ CSV.open("sliding.csv", "w") do |csv|
     end
 
     offset += 1
+  end
+end
+
+puts "...DONE"
+
+print "RANDOM SAMPLING TEST"
+
+CSV.open("sample.csv", "w") do |csv|
+  csv << %w(Run RT Male Female None Pct)
+
+  (0..10000).each do |i|
+    picks = Set.new
+
+    while picks.size < 100
+      p = rand(tweets.length)
+
+      picks << p unless picks.include?(p)
+    end
+
+    retweet_count = {"male" => 0, "female" => 0, "none" => 0}
+
+    picks.each do |p|
+      tweet = tweets[p]
+
+      if tweet["retweeted_status"]
+          username = tweet["retweeted_status"]["user"]["screen_name"]
+          raise "No gender found for #{username}" if genders[username].nil?
+          raise "Weird gender #{genders[username]} for #{username}" if retweet_count[genders[username]].nil?
+  
+          retweet_count[genders[username]] += 1
+      end
+    end
+
+    total = retweet_count["male"] + retweet_count["female"] + retweet_count["none"]
+    pct = retweet_count["male"] + retweet_count["female"] > 0 ? (retweet_count["male"].to_f / (retweet_count["male"] + retweet_count["female"])) : 0.0
+    csv << [i, total, retweet_count["male"], retweet_count["female"] , retweet_count["none"], "%0.4f" % pct]
   end
 end
 
