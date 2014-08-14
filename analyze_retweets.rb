@@ -136,7 +136,7 @@ print "RANDOM SAMPLING TEST"
 CSV.open("sample.csv", "w") do |csv|
   csv << %w(Run RT Male Female None Pct)
 
-  (0..10000).each do |i|
+  (0..1000).each do |i|
     picks = Set.new
 
     while picks.size < 100
